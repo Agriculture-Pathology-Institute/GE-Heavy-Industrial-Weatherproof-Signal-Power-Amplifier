@@ -1,0 +1,121 @@
+# File Path: docker-compose.yml
+version: '3.8'
+
+services:
+  # =========================================================================
+  # JOB DOMAIN: TIER 01 — GOVERNMENT REGULATORY EXTRACTION & ENGINE DATA
+  # Critical Priority: Exposes spatial clear-zones first to DOI, OSHA, & County [1.1]
+  # =========================================================================
+  validate-config:
+    image: node:20-alpine
+    container_name: univac_ix_planetary_controller
+    restart: always
+    user: "node"
+    networks:
+      - univac_secure_fabric
+    volumes:
+      - ./:/usr/src/app:ro # Mounted as strictly Read-Only to protect core logic
+      - univac_stream_data:/usr/src/app/Data/UnivacStreams
+    working_dir: /usr/src/app
+    environment:
+      - NODE_ENV=production
+      - UNIVAC_TARGET_HOST=rt-json-network-bridge
+      - UNIVAC_TARGET_PORT=8080
+    command: ["node", "validate-config.js"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0' # Enforce strict compute resource limits to guarantee host stability
+          memory: 512M
+
+  # =========================================================================
+  # JOB DOMAIN: TIER 02 — COMMERCIAL GATEWAY & SERVER-TO-SERVER BUS
+  # Coordinates 3D spatial points with polyhedral keeping zone matrices [1.20]
+  # =========================================================================
+  rt-json-network-bridge:
+    image: python:3.11-slim-bookworm
+    container_name: rt_json_network_bridge
+    restart: always
+    networks:
+      - univac_secure_fabric
+    volumes:
+      - ./:/app:ro
+      - univac_stream_data:/app/Data/UnivacStreams
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python3", "src/hardware/rt_json_network_bridge.py"]
+    depends_on:
+      validate-config:
+        condition: service_started # Awaits regulatory validation layer launch first
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # =========================================================================
+  # JOB DOMAIN: EMERALD-CITY-TECHS ZEPHYR RTOS EMBEDDED CONVERSION CLIENT
+  # Headless vehicle abstraction streaming 10Hz closed-loop data strings [1.24]
+  # =========================================================================
+  zephyr-embedded-bridge:
+    build:
+      context: ../GE-Heavy-Industrial-Weatherproof-Signal-Power-Amplifier
+      dockerfile: Dockerfile.zephyr
+    container_name: zephyr_embedded_bridge
+    restart: always
+    networks:
+      - univac_secure_fabric
+    environment:
+      - ZEPHYR_BRIDGE_TARGET_IP=rt-json-network-bridge
+      - ZEPHYR_BRIDGE_TARGET_PORT=8080
+    depends_on:
+      - rt-json-network-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # =========================================================================
+  # JOB DOMAIN: AUDIO EXPOSITION ALARM & PUBLIC BROADCASTER
+  # Streams non-abbreviated FAA PIREP voice alerts over control speakers [1.15]
+  # =========================================================================
+  rt-audio-alarm:
+    image: python:3.11-slim-bookworm
+    container_name: rt_audio_alarm
+    restart: always
+    networks:
+      - univac_secure_fabric
+    devices:
+      - "/dev/snd:/dev/snd" # Privileged pass-through mapping straight to Ubuntu sound card
+    volumes:
+      - ./:/app:ro
+    working_dir: /app
+    command: ["python3", "src/hardware/rt_audio_alarm.py"]
+    depends_on:
+      - rt-json-network-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+# =========================================================================
+# ISOLATED ZERO-TRUST NETWORK & VOLUME MANAGEMENT DEFINITIONS
+# =========================================================================
+networks:
+  univac_secure_fabric:
+    driver: bridge
+    internal: true # Sets network as fully internal, blocking external malware entry paths [1.20]
+    driver_opts:
+      com.docker.network.bridge.name: "br-univac-fabric"
+      com.docker.network.driver.mtu: "1500"
+
+volumes:
+  univac_stream_data:
+    driver: local
+    driver_opts:
+      type: tmpfs # Stores live JSON streaming files purely in RAM to achieve max speed
+      device: tmpfs
+      o: "size=128m,uid=999,gid=999,mode=770"
