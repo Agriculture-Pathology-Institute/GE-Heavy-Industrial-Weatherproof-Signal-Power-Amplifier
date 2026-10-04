@@ -1,0 +1,150 @@
+# File Path: docker-compose.yml
+version: '3.8'
+
+services:
+  # =========================================================================
+  # ZONE TIER 01: GOVERNMENTAL REGULATORY OVERSIGHT & SPATIAL ENGINE
+  # Absolute Top Priority: Exposes spatial clear-zones first to DOI and OSHA [1.22]
+  # =========================================================================
+  validate-config:
+    image: node:20-alpine
+    container_name: univac_ix_planetary_controller
+    restart: always
+    user: "node"
+    networks:
+      - univac_secure_fabric
+    volumes:
+      - ./:/usr/src/app:ro # Mounted strictly Read-Only to safeguard core legal datums
+      - univac_stream_data:/usr/src/app/Data/UnivacStreams
+    working_dir: /usr/src/app
+    environment:
+      - NODE_ENV=production
+      - UNIVAC_TARGET_HOST=rt-json-network-bridge
+      - UNIVAC_TARGET_PORT=8080
+    command: ["node", "validate-config.js"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # =========================================================================
+  # ZONE TIER 02: HIGH-PERFORMANCE COMPUTER VISION & EDWARDS FIREWORKS CORE
+  # Ingests UE5 camera feeds for real-time fire, smoke, and drift tracking
+  # =========================================================================
+  edwards-firewatch-bridge:
+    image: python:3.11-slim-bookworm
+    container_name: edwards_firewatch_bridge
+    restart: always
+    runtime: nvidia # Enables native pass-through mapping to host NVIDIA GPU hardware [1.11]
+    networks:
+      - univac_secure_fabric
+    volumes:
+      - ./:/app:ro
+      - univac_stream_data:/app/Data/UnivacStreams
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0 # Targets primary GPU streaming multiprocessors [1.10]
+      - EDWARDS_NODE_ID=101    # Matches your production FireWatch panel configuration
+      - OSHA_CRITICAL_O2_LIMIT=19.5 # Enforces mandatory safety thresholds
+    command: ["python3", "src/hardware/rt_edwards_alarm_driver.py"]
+    depends_on:
+      validate-config:
+        condition: service_started # Awaits regulatory validation layer launch first
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' # Allocated multi-core scheduling capacity for Numba JIT parsing
+          memory: 2G
+
+  # =========================================================================
+  # ZONE TIER 03: COMMERCIAL GATEWAY & SERVER-TO-SERVER BUS
+  # Coordinates 3D spatial points with VHDL polyhedral keep-in matrices [1.20]
+  # =========================================================================
+  rt-json-network-bridge:
+    image: python:3.11-slim-bookworm
+    container_name: rt_json_network_bridge
+    restart: always
+    networks:
+      - univac_secure_fabric
+    volumes:
+      - ./:/app:ro
+      - univac_stream_data:/app/Data/UnivacStreams
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python3", "src/hardware/rt_json_network_bridge.py"]
+    depends_on:
+      - edwards-firewatch-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # =========================================================================
+  # ZONE TIER 04: EMERALD-CITY-TECHS ZEPHYR RTOS EMBEDDED CONVERSION CLIENT
+  # Headless vehicle abstraction streaming 10Hz closed-loop data strings [1.24]
+  # =========================================================================
+  zephyr-embedded-bridge:
+    build:
+      context: ../GE-Heavy-Industrial-Weatherproof-Signal-Power-Amplifier
+      dockerfile: Dockerfile.zephyr # Invokes your multi-stage compiler silo image container
+    container_name: zephyr_embedded_bridge
+    restart: always
+    networks:
+      - univac_secure_fabric
+    environment:
+      - ZEPHYR_BRIDGE_TARGET_IP=rt-json-network-bridge
+      - ZEPHYR_BRIDGE_TARGET_PORT=8080
+    depends_on:
+      - rt-json-network-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # =========================================================================
+  # ZONE TIER 05: AUDIO EXPOSITION ALARM & PUBLIC BROADCASTER
+  # Streams non-abbreviated FAA PIREP voice alerts over control speakers [1.15]
+  # =========================================================================
+  rt-audio-alarm:
+    image: python:3.11-slim-bookworm
+    container_name: rt_audio_alarm
+    restart: always
+    networks:
+      - univac_secure_fabric
+    devices:
+      - "/dev/snd:/dev/snd" # Privileged pass-through mapping straight to Ubuntu sound card
+    volumes:
+      - ./:/app:ro
+    working_dir: /app
+    command: ["python3", "src/hardware/rt_audio_alarm.py"]
+    depends_on:
+      - rt-json-network-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+# =========================================================================
+# ISOLATED ZERO-TRUST NETWORK & VOLUME MANAGEMENT DEFINITIONS
+# =========================================================================
+networks:
+  univac_secure_fabric:
+    driver: bridge
+    internal: true # Sets network as fully internal, blocking external malware entry paths [1.20]
+    driver_opts:
+      com.docker.network.bridge.name: "br-univac-fabric"
+      com.docker.network.driver.mtu: "1500"
+
+volumes:
+  univac_stream_data:
+    driver: local
+    driver_opts:
+      type: tmpfs # Stores live JSON streaming files purely in RAM to achieve max speed
+      device: tmpfs
+      o: "size=128m,uid=999,gid=999,mode=770"
