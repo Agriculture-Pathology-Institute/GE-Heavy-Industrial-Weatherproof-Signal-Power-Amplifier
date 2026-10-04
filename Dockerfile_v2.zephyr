@@ -1,0 +1,75 @@
+# File Path: Dockerfile.zephyr
+# =========================================================================
+# UNIVAC IX CORE FABRIC — HARDEnd ZEPHYR EMBEDDED BRIDGE WORKSPACE
+# Priority Execution Sequence: Stable -> Secure -> Fast
+# =========================================================================
+
+# STAGE 1: Hardened Compilation Core
+FROM ubuntu:24.04 AS compiler-silo
+
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+
+# Enforce strict system dependency locks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    cmake \
+    ninja-build \
+    gperf \
+    ccache \
+    dfu-util \
+    device-tree-compiler \
+    wget \
+    python3-pip \
+    python3-setuptools \
+    python3-tk \
+    python3-wheel \
+    xz-utils \
+    file \
+    make \
+    gcc \
+    gcc-multilib \
+    g++-multilib \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install West metadata toolchain tracking loops
+RUN pip3 install --break-system-packages west
+
+# Bootstrap Emerald-City-Techs Zephyr RTOS source tree workspace
+WORKDIR /workdir
+RUN west init -m https://github.com --mr main zephyr-workspace \
+    && cd zephyr-workspace \
+    && west update \
+    && git clone https://github.com boards/out_of_tree/ \
+    && west zephyr-export
+
+# Ingest the custom cross-server translation applications
+COPY ./src/hardware /workdir/zephyr-workspace/zephyr/apps/univac_bridge/src
+COPY ./CMakeLists.txt /workdir/zephyr-workspace/zephyr/apps/univac_bridge/
+
+# Cross-compile app natively targeting embedded execution architectures (e.g., native_sim or ARM)
+WORKDIR /workdir/zephyr-workspace/zephyr/apps/univac_bridge
+RUN cmake -B build -GNinja -DBOARD=native_sim && ninja -C build
+
+# STAGE 2: Hardened Zero-Trust Downstream Runtime Silo
+FROM ubuntu:24.04 AS execution-silo
+
+# Install light network routing runtime essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Establish restricted, non-privileged group boundaries
+RUN groupadd -g 999 univacgroup && useradd -r -u 999 -g univacgroup univacuser
+WORKDIR /app
+
+# Extract the compiled binary asset out of the compiler stage container space
+COPY --from=compiler-silo --chown=univacuser:univacgroup /workdir/zephyr-workspace/zephyr/apps/univac_bridge/build/zephyr/zephyr.exe /app/zephyr_bridge
+
+# Lock down filesystem layer execution rights
+USER univacuser
+
+# Port 8080 mapping hook connecting back to the host JSON network bridge server
+EXPOSE 8080
+
+CMD ["./zephyr_bridge"]
